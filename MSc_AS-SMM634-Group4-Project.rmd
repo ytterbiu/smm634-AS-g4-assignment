@@ -103,6 +103,17 @@ rows <- nrow(df); cols <- ncol(df)
 stopifnot("price" %in% names(df))
 ```
 
+### Check for any spelling errors in categorical data
+
+```{r}
+cat_cols <- names(df)[sapply(df, function(x) is.factor(x) || is.character(x))]
+uniques <- lapply(cat_cols, function(v) sort(unique(df[[v]])))
+names(uniques) <- cat_cols
+uniques
+```
+
+BE note: should cylinder number be numerical?  Could we convert or is it categorical?
+
 ### Quick visualisation
 
 ```{r}
