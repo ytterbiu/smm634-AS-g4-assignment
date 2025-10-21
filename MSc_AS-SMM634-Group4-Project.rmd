@@ -21,7 +21,8 @@ output:
 
 ## BE note:
 
-Use `rmarkdown::render("my_report.Rmd", output_dir = "docs")` to render...
+Use `rmarkdown::render("MSc_AS-SMM634-Group4-Project.rmd", output_dir = "docs")`
+to render...
 
 # Identifying the variables
 
@@ -52,20 +53,20 @@ library(glue)
 library(scales)
 library(lmtest)
 
-# theme_set(theme_minimal(base_size = 11))
 ```
 
+### Reading in data (& showing summary)
+
 ```{r}
-# ---------- Load data ----------
 df <- readr::read_csv("car_price.csv", show_col_types = FALSE)
 summary(df)
 ```
 
+### Cleaning
+
 ```{r}
-# Clean names
 df <- janitor::clean_names(df)
 
-# Expected columns (lower snake_case after cleaning):
 expected <- c(
   "car_id","symboling","carname","fueltype","aspiration","doornumber",
   "carbody","drivewheel","enginelocation","wheelbase","carlength","carwidth",
@@ -77,24 +78,11 @@ missing <- setdiff(expected, names(df))
 if (length(missing) > 0) {
   warning(glue::glue("Missing columns (after cleaning): {toString(missing)}"))
 }
+```
 
-# Derive brand from carname if available, fix common typos
-if ("carname" %in% names(df)) {
-  df <- df |>
-    mutate(
-      carname = tolower(carname),
-      brand = stringr::str_extract(carname, "^[^ ]+"),
-      brand = dplyr::recode(
-        brand,
-        "vw" = "volkswagen", "vokswagen" = "volkswagen",
-        "porcshce" = "porsche", "toyouta" = "toyota",
-        "maxda" = "mazda", "alfa-romero" = "alfa-romeo",
-        .default = brand
-      )
-    )
-}
+### Factorise categorical variables
 
-# Factorise categorical variables (only those present)
+```{r}
 cat_vars <- c(
   "fueltype","aspiration","doornumber","carbody","drivewheel",
   "enginelocation","enginetype","cylindernumber","fuelsystem","brand"
@@ -111,6 +99,64 @@ if ("price" %in% names(df)) {
 }
 
 rows <- nrow(df); cols <- ncol(df)
+# quick check
+stopifnot("price" %in% names(df))
+```
+
+### Quick visualisation
+
+```{r}
+p1 <- ggplot(df, aes(price)) +
+  geom_histogram(bins = 30) +
+  labs(title = "Price (raw)")
+p2 <- ggplot(df, aes(log_price)) +
+  geom_histogram(bins = 30) +
+  labs(title = "Price (log)")
+
+# Correlations among numerics
+
+num_vars <- c(
+  "wheelbase", "carlength", "carwidth", "carheight", "curbweight",
+  "enginesize", "boreratio", "stroke", "compressionratio", "horsepower",
+  "peakrpm", "citympg", "highwaympg", "symboling"
+)
+keep_num <- intersect(num_vars, names(df))
+p_cor <- GGally::ggcorr(
+  df[, keep_num],
+  label = TRUE, label_round = 2, hjust = 0.8, size = 3
+) +
+  labs(title = "Correlation (numeric regressors)")
+
+# Boxplots of log_price by key categoricals (if present)
+
+plot_cat <- function(var) {
+  if (var %in% names(df)) {
+    ggplot(df, aes(.data[[var]], log_price)) +
+      geom_boxplot() +
+      labs(title = paste("log_price by", var), x = var, y = "log_price") +
+      theme(axis.text.x = element_text(angle = 30, hjust = 1))
+  } else {
+    NULL
+  }
+}
+p_cat1 <- plot_cat("fueltype")
+p_cat2 <- plot_cat("carbody")
+p_cat3 <- plot_cat("drivewheel")
+```
+
+```{r}
+p1
+p2
+```
+
+```{r}
+p_cor
+```
+
+```{r}
+p_cat1
+p_cat2
+p_cat3
 ```
 
 # Fitting General Linear Response Model
