@@ -21,7 +21,7 @@ output:
 
 ## BE note:
 
-Use `rmarkdown::render("my_report.Rmd", output_dir = "docs")` to render
+Use `rmarkdown::render("my_report.Rmd", output_dir = "docs")` to render...
 
 # Identifying the variables
 
@@ -112,3 +112,19 @@ if ("price" %in% names(df)) {
 
 rows <- nrow(df); cols <- ncol(df)
 ```
+
+# Fitting General Linear Response Model
+
+TBI
+
+# Summarising and Interpreting the Results
+
+TBI
+
+# Limitations
+
+TBI
+
+# Suggestions for Improvements
+
+TBI
