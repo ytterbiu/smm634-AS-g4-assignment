@@ -1,0 +1,10 @@
+linters: lintr::with_defaults(
+  line_length_linter = lintr::line_length_linter(120L),
+  object_name_linter = NULL,              # allow mixedCase if you prefer
+  cyclocomp_linter = lintr::cyclocomp_linter(50L),
+  commented_code_linter = NULL
+)
+exclusions: list(
+  "data-raw/",                            # skip folders
+  "inst/doc/"
+)

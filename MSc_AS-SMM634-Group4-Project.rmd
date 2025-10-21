@@ -1,0 +1,92 @@
+---
+title: "SMM634-AS202526-GroupProject-G4"
+author: "AS - Group 4"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE, message = FALSE, warning = FALSE,
+  fig.align = "center", fig.width = 7, fig.height = 5
+)
+
+# # Packages
+# install.packages(c("tidyverse","janitor","broom","car","MASS","GGally","glue","scales","lmtest"))
+# need <- c(
+#   "tidyverse","janitor","broom","car","MASS","GGally",
+#   "glue","scales","lmtest"
+# )
+# to_install <- setdiff(need, rownames(installed.packages()))
+# if (length(to_install)) install.packages(to_install, quiet = TRUE)
+# invisible(lapply(need, library, character.only = TRUE))
+library(tidyverse)   # loads dplyr, ggplot2, readr, stringr, forcats, etc.
+library(janitor)
+library(broom)
+library(car)
+library(MASS)
+library(GGally)
+library(glue)
+library(scales)
+library(lmtest)
+
+# theme_set(theme_minimal(base_size = 11))
+```
+
+```{r}
+# ---------- Load data ----------
+df <- readr::read_csv("car_price.csv", show_col_types = FALSE)
+summary(df)
+```
+
+```{r}
+# Clean names
+df <- janitor::clean_names(df)
+
+# Expected columns (lower snake_case after cleaning):
+expected <- c(
+  "car_id","symboling","carname","fueltype","aspiration","doornumber",
+  "carbody","drivewheel","enginelocation","wheelbase","carlength","carwidth",
+  "carheight","curbweight","enginetype","cylindernumber","enginesize","fuelsystem",
+  "boreratio","stroke","compressionratio","horsepower","peakrpm","citympg",
+  "highwaympg","price"
+)
+missing <- setdiff(expected, names(df))
+if (length(missing) > 0) {
+  warning(glue::glue("Missing columns (after cleaning): {toString(missing)}"))
+}
+
+# Derive brand from carname if available, fix common typos
+if ("carname" %in% names(df)) {
+  df <- df |>
+    mutate(
+      carname = tolower(carname),
+      brand = stringr::str_extract(carname, "^[^ ]+"),
+      brand = dplyr::recode(
+        brand,
+        "vw" = "volkswagen", "vokswagen" = "volkswagen",
+        "porcshce" = "porsche", "toyouta" = "toyota",
+        "maxda" = "mazda", "alfa-romero" = "alfa-romeo",
+        .default = brand
+      )
+    )
+}
+
+# Factorise categorical variables (only those present)
+cat_vars <- c(
+  "fueltype","aspiration","doornumber","carbody","drivewheel",
+  "enginelocation","enginetype","cylindernumber","fuelsystem","brand"
+)
+for (v in intersect(cat_vars, names(df))) df[[v]] <- as.factor(df[[v]])
+
+# Derived variables
+if ("price" %in% names(df)) {
+  df <- df |>
+    mutate(
+      log_price = log(price),
+      doors_num = if ("doornumber" %in% names(df)) dplyr::recode(doornumber, two = 2L, four = 4L, .default = NA_integer_) else NA_integer_
+    )
+}
+
+rows <- nrow(df); cols <- ncol(df)
+```

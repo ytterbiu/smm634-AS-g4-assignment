@@ -1,0 +1,9 @@
+*.pdf
+*.png
+*.jpg
+
+**.DS_Store
+.Rproj.user
+**.Rproj**
+
+.vscode/
