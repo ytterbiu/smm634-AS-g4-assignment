@@ -1,17 +1,22 @@
 ## Read in data
 rm(list = ls())
-source("ReadCarData.R")
+source(file.path(".", "CarDataRead.R"))
 
-## Clean data
+## dependencies / external librarys
 library(dplyr)
 library(ggplot2)
 library(car)
+library(MASS)
+
+## Clean data
+df$carManufacturerClean <- sapply(strsplit(df$CarName, " +"), `[`, 1)
+
 
 ## Analysis 1
-# source("CarSafetyPriceAnalysis.R")
+source(file.path(".", "CarAnalysisSafetyPrice.R"))
 # clean this file so it doesn't have overlap
 # summary of what this shows:...
 
 
 ## Analysis 2 (looking at mpg)
-source("CarMPGAnalysis.R")
+source(file.path(".", "CarAnalysisMPG.R"))
