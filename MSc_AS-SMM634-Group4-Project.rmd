@@ -88,7 +88,14 @@ Want to check for any typos, missing data, or NaN values.
 ### Car manufacturer
 
 Extracting car manufacturer from first part of `CarName` and correcting spelling
-errors. Our assumptions are as follows:
+errors. 
+```{r}
+# extract car manufacturer from first part of CarName
+df$carManufacturer <- sapply(strsplit(df$CarName, " +"), `[`, 1)
+# print
+table(df$carManufacturer)
+```
+Our assumptions are as follows:
 
 | Typo / Mis-spelling | Correct Spelling |
 | ------------------- | ---------------- |
@@ -100,11 +107,6 @@ errors. Our assumptions are as follows:
 | vw                  | volkswagen       |
 
 ```{r}
-# extract car manufacturer from first part of CarName
-df$carManufacturer <- sapply(strsplit(df$CarName, " +"), `[`, 1)
-# print
-table(df$carManufacturer)
-
 df <- df %>% mutate(carManufacturer = case_match(carManufacturer,
   "maxda" ~ "mazda",
   "Nissan" ~ "nissan",
@@ -288,25 +290,298 @@ beyond the scope of this analysis).
 
 # Pricing Assistant Model
 
-Our main goal is to get an accurate predicted price $$\hat{y}$$ for a new
-car.
+Our main goal is to get an accurate predicted price $$\hat{y}$$ for a new car.
 
-Note, to build a good pricing assistant, we must check p-values, interpret
-coefficients to ensure the model is valid - this chimes with goals of assessment
-and lecture content
+BE note: A good pricing assistant chimes with goals of assessment and the
+lecture content.
 
-## Fitting General Linear Response Model
+## Attempt 01
+
+Excluding predictors that are highly correlated (parameter choice)
+
+```{r}
+# Y = price
+# X = horsepower, enginesize, curbweight, highwaympg,
+#     fueltype, aspiration, carbody, drivewheel, cylinderNum
+
+mdl.pa1 <- lm(
+  price ~ horsepower + enginesize + curbweight + highwaympg +
+    fueltype + aspiration + carbody + drivewheel + cylinderNum,
+  data = df
+)
+
+print(summary(mdl.pa1))
+```
+
+F-statistic: 75.54 on 16 and 188 DF, p-value: < 2.2e-16
+
+- Test of null hypothesis that $H_0: \beta_1 = \beta_2 = \dots = 0$
+- Meaning all predictors are useless
+- F-value is large and p-value small so we can reject this null hypothesis
+
+Adjusted R-squared: 0.8539
+
+BE comments: Model accounts for ~85% of variability in the variables (Adj.
+R-squared = 85.4%, F-statistic p-value < 2.2e-16).
+
+Quite a few predictors have high p-values (not statistically significant)
+
+Next step to use Backward Selection process to run algorithm removing the
+variable with the largest p-value and re-fitting the model...
+
+```{r}
+mdl.pa2 <- stepAIC(mdl.pa1, direction = "backward", trace = TRUE)
+```
+
+### Attempt 01: Model comparison
+
+See if variables removed as a group were significant.
+
+Hypothesis:
+
+- $H_0$​: The simpler model (mdl.pa2) is sufficient
+- $H_1$​: The first (full) model (mdl.pa1) is significantly better.
+
+```{r}
+print(anova(mdl.pa2, mdl.pa1))
+```
+
+```{r}
+par(bg = "white")
+par(mfrow = c(2, 2))
+plot(mdl.pa2)
+par(mfrow = c(1, 1))
+```
+
+```{r}
+vif(mdl.pa2)
+```
+
+Brief BE summary:
+
+- VIF output is good - all values are below the 5 threshold, so collinearity is
+  not a major issue in this model
+
+Plots show two issues
+
+- Heteroscedasticity in residuals vs fitted (have funnel shape as the residuals
+  get larger as the predicted price increases)
+- Some leverage points / large outliers
+
+## Attempt 02
+
+To fix heteroscedasticity let's use log(price) & look at what happens if we
+include carManufacturer?
+
+```{r}
+mdl.pa3 <- lm(
+  log(price) ~ horsepower + enginesize + curbweight + highwaympg +
+    fueltype + aspiration + carbody + drivewheel + cylinderNum +
+    carManufacturer,
+  data = df
+)
+summary(mdl.pa3)
+par(bg = "white")
+par(mfrow = c(2, 2))
+plot(mdl.pa3)
+par(mfrow = c(1, 1))
+```
+
+```{r}
+mdl.pa4 <- stepAIC(mdl.pa3, direction = "backward", trace = TRUE)
+```
+
+```{r}
+summary(mdl.pa4)
+```
+
+```{r}
+par(bg = "white")
+par(mfrow = c(2, 2))
+plot(mdl.pa4)
+par(mfrow = c(1, 1))
+print(vif(mdl.pa4))
+```
+
+```{r}
+print(anova(mdl.pa3, mdl.pa4))
+```
+
+### Summary
+
+- `mdl.pa4` now shows a random, horizontal band of points. The red line is flat.
+  This indicates the variance of the residuals is now constant, and we can trust
+  our p-values and standard errors.
+- GVIF values are high, but we have lots of categories. Importantly all
+  `GVIF^(1/(2*Df))` are below 5 -> no collinearity in model
+- Anova test with two models fails to reject null hypothesis ($H_0$​) that all
+  the variables you removed (highwaympg, fueltype, and drivewheel) have
+  coefficients equal to zero and add no significant predictive value to the
+  model.
+  - p-value (0.7481) is large -> there is no statistical evidence that
+    `highwaympg`, `fueltype`, and `drivewheel` as a group improve the model.
+
+`mdl.pa4` (simpiler) is just as good as `mdl.pa3`, so we should use `mdl.pa4`.
+
+## Demo: testing this model's use to answer our initial question
+
+BE note: we know from data source that these prices are in dollars...
+
+```{r}
+# Example properties of new car
+# BE note: have to use exact text for factor vals
+# Also a limitation of this (not built in) is that it doesn't check for limits
+# of data (i.e., if we put in a horsepower over the max value the model won't
+# be valid, but this isn't accounted for here...)
+# this also doesn't account for types of engine produced by companies
+new_car <- data.frame(
+  horsepower = 100,
+  enginesize = 120,
+  curbweight = 2500,
+  aspiration = as.factor("std"),
+  carbody = as.factor("sedan"),
+  cylinderNum = as.factor("four"),
+  carManufacturer = as.factor("toyota") # peugeot/volvo/porsche
+)
+
+# use predict() to estimate fit
+pred_log_scale <-
+  predict(mdl.pa4, newdata = new_car, interval = "prediction")
+
+print("Prediction on log($) scale:")
+print(pred_log_scale)
+
+# convert back from log price for fit, lwr, upr
+pred_dollar_scale <- exp(pred_log_scale)
+
+print("Prediction on dollar ($) scale:")
+print(pred_dollar_scale)
+
+# All in one...
+car_props <- paste(
+  new_car$carManufacturer, new_car$carbody,
+  "with", new_car$horsepower, "hp,",
+  new_car$enginesize, "enginesize, and",
+  new_car$curbweight, "lb curbweight"
+)
+
+fit_price <- pred_dollar_scale[1, "fit"]
+lwr_price <- pred_dollar_scale[1, "lwr"]
+upr_price <- pred_dollar_scale[1, "upr"]
+
+report_string <- sprintf(
+  "\nBased on our final model, for a %s:
+  \n> The single best price estimate (yhat) is $%.0f.
+  \n> We can say we are 95%% confident that the listing price for a car with
+  these specific specifications would fall within prediction interval of
+  [$%.0f, $%.0f].",
+  car_props,
+  fit_price,
+  lwr_price,
+  upr_price
+)
+cat(report_string)
+```
+
+### Demo: testing function
+
+```{r}
+get_price_prediction_report <- function(model,
+                                        hp,
+                                        engine_size,
+                                        curb_weight,
+                                        asp,
+                                        body,
+                                        cyl,
+                                        mfr) {
+  new_car <- data.frame(
+    horsepower = hp,
+    enginesize = engine_size,
+    curbweight = curb_weight,
+    aspiration = as.factor(asp),
+    carbody = as.factor(body),
+    cylinderNum = as.factor(cyl),
+    carManufacturer = as.factor(mfr)
+  )
+  pred_log_scale <- predict(model, newdata = new_car, interval = "prediction")
+  pred_dollar_scale <- exp(pred_log_scale)
+  car_props <- paste(
+    new_car$carManufacturer, new_car$carbody,
+    "with", new_car$horsepower, "hp,",
+    new_car$enginesize, "enginesize, and",
+    new_car$curbweight, "lb curbweight"
+  )
+  fit_price <- pred_dollar_scale[1, "fit"]
+  lwr_price <- pred_dollar_scale[1, "lwr"]
+  upr_price <- pred_dollar_scale[1, "upr"]
+  report_string <- sprintf(
+    "\nBased on our final model, for a %s:
+    > The single best price estimate (y-hat) is $%.0f
+    > 95%% CI for this specific car is [$%.0f, $%.0f]",
+    car_props,
+    fit_price,
+    lwr_price,
+    upr_price
+  )
+
+  cat(report_string)
+}
+```
+
+```{r}
+# test 01: same toyota (to check :))
+get_price_prediction_report(
+  model = mdl.pa4,
+  hp = 100,
+  engine_size = 120,
+  curb_weight = 2500,
+  asp = "std",
+  body = "sedan",
+  cyl = "four",
+  mfr = "toyota"
+)
+
+# test 02: porsche
+get_price_prediction_report(
+  model = mdl.pa4,
+  hp = 200,
+  engine_size = 180,
+  curb_weight = 3000,
+  asp = "turbo",
+  body = "hardtop",
+  cyl = "six",
+  mfr = "porsche"
+)
+
+# test 03: honda
+get_price_prediction_report(
+  model = mdl.pa4,
+  hp = 150,
+  engine_size = 120,
+  curb_weight = 1000,
+  asp = "std",
+  body = "convertible",
+  cyl = "five",
+  mfr = "honda"
+)
+```
+
+## Limitations
 
 TBI
 
-# Summarising and Interpreting the Results
+## Suggestions for Improvements
 
 TBI
 
-# Limitations
+# MPG Model
+
+## TBI
+
+## Limitations
 
 TBI
 
-# Suggestions for Improvements
+## Suggestions for Improvements
 
 TBI
