@@ -88,13 +88,15 @@ Want to check for any typos, missing data, or NaN values.
 ### Car manufacturer
 
 Extracting car manufacturer from first part of `CarName` and correcting spelling
-errors. 
+errors.
+
 ```{r}
 # extract car manufacturer from first part of CarName
 df$carManufacturer <- sapply(strsplit(df$CarName, " +"), `[`, 1)
 # print
 table(df$carManufacturer)
 ```
+
 Our assumptions are as follows:
 
 | Typo / Mis-spelling | Correct Spelling |
@@ -568,15 +570,217 @@ get_price_prediction_report(
 
 ## Limitations
 
-TBI
+Observation 76 is a high-leverage point
+
+- coefficients are being skewed by this single observation
+- /model is overfit to this point
 
 ## Suggestions for Improvements
 
-TBI
+- We could remove this point and refit the model to see if the coefficients are
+  stable and the model is more general
+- BE note: don't know if we want to do this in the model or leave it and discuss
+  here?
+
+### Attempt 03 (may not include in final version)
+
+```{r}
+row_to_remove <- 76
+
+df_fixed <- df[-row_to_remove, ]
+
+mdl.pa5 <- lm(formula(mdl.pa4), data = df_fixed)
+
+print(summary(mdl.pa4))
+print(summary(mdl.pa5))
+```
+
+```{r}
+par(bg = "white")
+par(mfrow = c(2, 2))
+plot(mdl.pa5)
+par(mfrow = c(1, 1))
+
+cat("\n--- VIF Scores for Robust Final Model ---\n")
+print(car::vif(mdl.pa5))
+```
 
 # MPG Model
 
-## TBI
+## Attempt 01
+
+Here we are asking: "How does fuel economy (citympg) affect a car's price, after
+controlling for other characteristics?"
+
+```{r}
+vars <- c(
+  "price", "safetyIncr", "aspiration", "carbody", "enginelocation",
+  "carwidth", "curbweight", "enginetype", "cylinderNum", "enginesize",
+  "stroke", "peakrpm", "compressionratio", "carManufacturer", "citympg"
+)
+
+dfm <- df[, vars]
+dfm <- dfm[complete.cases(dfm), ]
+dfm[] <- lapply(dfm, function(x) if (is.factor(x)) droplevels(x) else x)
+
+# BE note: mpg1 is not included here, but have kept naming the same for
+# consistency
+lm.mpg2 <- lm(
+  price ~ safetyIncr + aspiration + carbody +
+    enginelocation + carwidth + curbweight + enginetype +
+    cylinderNum + enginesize + stroke + peakrpm + compressionratio +
+    carManufacturer + citympg,
+  data = dfm
+)
+print(summary(lm.mpg2))
+```
+
+```{r}
+par(bg = "white")
+par(mfrow = c(2, 2))
+plot(lm.mpg2)
+par(mfrow = c(1, 1))
+
+# print(car::vif(lm.mpg2))
+```
+
+BE note: vif raises an error:
+`Error in vif.default(lm.mpg2): there are aliased coefficients in the model`
+
+This (& plots) indicate:
+
+- Perfect collinearity - model is over specified
+- Heteroscedasticity from residuals vs fitted (general & 67, 17 and 75)
+- Leverage points (50)
+
+Model gives p-value of 0.107634, which suggests effect of `citympg` is not
+significant, but errors stated above indicate/suggest model is not valid
+
+### Attempting to address these issues
+
+```{r}
+# use log(price)
+lm.mpg2log <- lm(
+  log(price) ~ safetyIncr + aspiration + carbody +
+    enginelocation + carwidth + curbweight + enginetype +
+    cylinderNum + enginesize + stroke + peakrpm + compressionratio +
+    carManufacturer + citympg,
+  data = dfm
+)
+summary(lm.mpg2log)
+```
+
+```{r}
+lm.mpg2logaic <- stepAIC(lm.mpg2log, direction = "backward", trace = FALSE)
+print(summary(lm.mpg2logaic))
+```
+
+```{r}
+par(bg = "white")
+par(mfrow = c(2, 2))
+plot(lm.mpg2logaic)
+par(mfrow = c(1, 1))
+```
+
+```{r}
+print(car::vif(lm.mpg2logaic))
+print(anova(lm.mpg2logaic, lm.mpg2log))
+```
+
+BE notes:
+
+- Heteroscedasticity is addressed (residuals vs fitted)
+- Adjusted r-squared is high (0.9448), model explains 94% of variance in the
+  logarithm of the price
+- All VIF values are below threshold of 5 (although curbweight is slightly high)
+- Anova shows simplier model is sufficient -> this is the one we should use
+
+Linking back to original question: "How does fuel economy (citympg) affect a
+car's price, after controlling for other characteristics?"
+
+Linking back to original question: "How does fuel economy (citympg) affect a
+car's price, after controlling for other characteristics?"
+
+**Coefficients**
+
+| Term    |   Estimate | Std. Error | t value | Pr(> t ) |
+| ------- | ---------: | ---------: | ------: | -------: |
+| citympg | -4.162e-03 |  3.027e-03 |  -1.375 | 0.171028 |
+
+Answer:
+
+- Estimate: $-4.163\times10^{-3}$
+- p-value: $0.171$
+
+So `citympg` does not have a statistically significant effect on log(price)
+after controlling for other factors (like curbweight, enginesize, carwidth, and
+carManufacturer)
+
+Answer:
+
+- Estimate: $-4.163\times10^{-3}$
+- p-value: $0.171$
+
+So `citympg` does not have a statistically significant effect on log(price)
+after controlling for other factors (like curbweight, enginesize, carwidth, and
+carManufacturer)
+
+## Attempt 02
+
+Note here Ardi's great model looks to address the question: 'What car features
+predict a car's fuel efficiency value?'
+
+BE note: uses `log(highwaympg/price)` which represents MPG per dollar (or fuel
+efficiency value)
+
+```{r}
+lm.mpg3 <- lm(
+  formula = log(highwaympg / price) ~ carbody + enginetype +
+    carwidth + curbweight + peakrpm + horsepower + carManufacturer,
+  data = df
+)
+
+summary(lm.mpg3)
+
+par(bg = "white")
+par(mfrow = c(2, 2))
+plot(lm.mpg3)
+
+print(vif(lm.mpg3))
+```
+
+### Problem
+
+BE note: Is the fact that we have the message “not plotting observations with
+leverage one: 19, 76, 126, 130” a problem?
+
+```{r}
+lm.mpg3aic <- stepAIC(lm.mpg3, direction = "backward", trace = TRUE)
+print(summary(lm.mpg3aic))
+par(bg = "white")
+par(mfrow = c(2, 2))
+plot(lm.mpg3aic)
+vif(lm.mpg3aic)
+```
+
+Summary
+
+- Model explains ~95% of variance in fuel efficiency value
+- Heteroscedasticity: residuals vs fitted looks good -> no heteroscedasticity
+- Collinearity values are all below threshold of 5
+
+Not sure if we want to mention it's flawed due to leverage points and then tell
+story.
+
+Story is quite clear though:
+
+- `curbweight` and `horsepower` are the strongest predictors with significant
+  negative coefficients -> makes sense:
+  - heavier (up) -> mpg per dollar (down)
+  - more powerful (horsepower up) -> mpg per dollar (down)
+
+Rotor engine has strong negative coefficient -> indicating it has a poor fuel
+efficiency value -> consistent with prior knowledge
 
 ## Limitations
 
