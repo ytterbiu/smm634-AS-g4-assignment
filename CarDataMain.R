@@ -1,12 +1,12 @@
-## Read in data
-rm(list = ls())
-source(file.path(".", "CarDataRead.R"))
-
 ## dependencies / external librarys
 library(dplyr)
 library(ggplot2)
 library(car)
 library(MASS)
+
+## Read in data
+rm(list = ls())
+source(file.path(".", "CarDataRead.R"))
 
 ## Clean data
 df$carManufacturerClean <- sapply(strsplit(df$CarName, " +"), `[`, 1)

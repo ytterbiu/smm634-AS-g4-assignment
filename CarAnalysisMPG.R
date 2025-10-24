@@ -47,3 +47,15 @@ lm.mpg2 <- lm(
 
 summary(lm.mpg2)
 car::vif(lm.mpg2)
+
+### ARDI model
+
+lm.mpg3 <- lm(formula = log(highwaympg/price) ~ carbody + enginetype + carwidth + 
+     curbweight + peakrpm + horsepower + carManufacturer, data = df)
+
+summary(lm.mpg3)
+
+par(mfrow = c(2, 2))
+plot(lm.mpg3)
+
+vif(lm.mpg3)
