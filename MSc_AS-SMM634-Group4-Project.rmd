@@ -24,153 +24,278 @@ output:
 Use `rmarkdown::render("MSc_AS-SMM634-Group4-Project.rmd", output_dir = "docs")`
 to render...
 
-# Identifying the variables
-
-## Reading & cleaning data and preliminary analysis
+# Initial processing
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(
   echo = TRUE, message = FALSE, warning = FALSE,
   fig.align = "center", fig.width = 7, fig.height = 5
 )
+```
 
-# # Packages
-# install.packages(c("tidyverse","janitor","broom","car","MASS","GGally","glue","scales","lmtest"))
-# need <- c(
-#   "tidyverse","janitor","broom","car","MASS","GGally",
-#   "glue","scales","lmtest"
-# )
-# to_install <- setdiff(need, rownames(installed.packages()))
-# if (length(to_install)) install.packages(to_install, quiet = TRUE)
-# invisible(lapply(need, library, character.only = TRUE))
-library(tidyverse)   # loads dplyr, ggplot2, readr, stringr, forcats, etc.
-library(janitor)
-library(broom)
+```{r}
+## dependencies / external librarys
+library(dplyr)
+library(ggplot2)
 library(car)
 library(MASS)
-library(GGally)
-library(glue)
-library(scales)
-library(lmtest)
-
 ```
 
-### Reading in data (& showing summary)
+## Read Data
 
 ```{r}
-df <- readr::read_csv("car_price.csv", show_col_types = FALSE)
+rm(list = ls())
+# CarDataRead.R
+
+# source(file.path(".", "CarDataRead.R"))
+df <- read.csv("car_price.csv") |>
+  mutate(fsymboling = as.factor(symboling)) |>
+  mutate(safety = case_match(
+    symboling,
+    c(-2, -1) ~ "<-1",
+    0 ~ "0",
+    1 ~ "1",
+    2 ~ "2",
+    3 ~ "3"
+  )) |>
+  mutate(safetyIncr = case_match(
+    symboling,
+    c(-2, -1) ~ "4",
+    0 ~ "3",
+    1 ~ "2",
+    2 ~ "1",
+    3 ~ "0"
+  )) |>
+  mutate(safetyIncr2 = case_match(
+    symboling,
+    0 ~ "Base",
+    c(-2, -1) ~ "Safer",
+    c(1, 2, 3) ~ "Riskier"
+  )) |>
+  mutate(cylinderNum = case_match(cylindernumber,
+    c("two", "three") ~ "leq_three",
+    c("eight", "twelve") ~ "geq_eight",
+    .default = cylindernumber
+  ))
+
+table(df$cylinderNum)
+```
+
+### Clean data
+
+Want to check for any typos, missing data, or NaN values.
+
+### Car manufacturer
+
+Extracting car manufacturer from first part of `CarName` and correcting spelling
+errors. Our assumptions are as follows:
+
+| Typo / Mis-spelling | Correct Spelling |
+| ------------------- | ---------------- |
+| maxda               | mazda            |
+| Nissan              | nissan           |
+| porcshce            | porsche          |
+| toyouta             | toyota           |
+| vokswagen           | volkswagen       |
+| vw                  | volkswagen       |
+
+```{r}
+# extract car manufacturer from first part of CarName
+df$carManufacturer <- sapply(strsplit(df$CarName, " +"), `[`, 1)
+# print
+table(df$carManufacturer)
+
+df <- df %>% mutate(carManufacturer = case_match(carManufacturer,
+  "maxda" ~ "mazda",
+  "Nissan" ~ "nissan",
+  "porcshce" ~ "porsche",
+  "toyouta" ~ "toyota",
+  c("vokswagen", "vw") ~ "volkswagen",
+  .default = carManufacturer
+))
+table(df$carManufacturer)
+```
+
+### NA value check
+
+```{r}
+# check individual columns for NaN values
+colSums(is.na(df))
+# check total number of NaN values
+cat(c("Total number of NaN values:", sum(colSums(is.na(df)))))
+```
+
+Looks good - no NaN values.
+
+## Data examination & visualisation
+
+### Overview
+
+```{r}
 summary(df)
+str(df)
 ```
 
-### Cleaning
+### Factor variables: General
 
 ```{r}
-df <- janitor::clean_names(df)
+table(df$symboling)
+table(df$safety)
+table(df$safetyIncr)
 
-expected <- c(
-  "car_id","symboling","carname","fueltype","aspiration","doornumber",
-  "carbody","drivewheel","enginelocation","wheelbase","carlength","carwidth",
-  "carheight","curbweight","enginetype","cylindernumber","enginesize","fuelsystem",
-  "boreratio","stroke","compressionratio","horsepower","peakrpm","citympg",
-  "highwaympg","price"
+table(df$cylindernumber)
+table(df$cylinderNum)
+```
+
+```{r}
+# factor_cols <- c("symboling", "safety", "safetyIncr", "cylindernumber", "cylinderNum","carbody")
+# examine categorical fields
+factor_cols<- c(
+  "symboling",
+  "safety",
+  "safetyIncr",
+  "safetyIncr2",
+  "cylindernumber",
+  "cylinderNum",
+  "carbody",
+  "fueltype",
+  "aspiration",
+  "doornumber",
+  "carbody",
+  "drivewheel",
+  "enginelocation", # BE note: 202:3 split so don't include in model
+  "enginetype",
+  "cylindernumber",
+  "fuelsystem",
+  "carManufacturer"
 )
-missing <- setdiff(expected, names(df))
-if (length(missing) > 0) {
-  warning(glue::glue("Missing columns (after cleaning): {toString(missing)}"))
+
+cols_use <- unique(intersect(factor_cols, names(df)))
+fc_missing <- setdiff(unique(factor_cols), names(df))
+if (length(fc_missing)) {
+  message(
+    "Missing in df (skipped): ",
+    paste(fc_missing, collapse = ", ")
+  )
+}
+tab_list <- setNames(
+  lapply(cols_use, function(v) table(df[[v]], useNA = "ifany")),
+  # lapply(cols_use, function(v) prop.table(table(df[[v]], useNA = "ifany"))),
+  cols_use
+)
+for (nm in names(tab_list)) {
+  cat("\n==== ", nm, " ====\n", sep = "")
+  print(tab_list[[nm]])
 }
 ```
 
-### Factorise categorical variables
-
 ```{r}
-cat_vars <- c(
-  "fueltype","aspiration","doornumber","carbody","drivewheel",
-  "enginelocation","enginetype","cylindernumber","fuelsystem","brand"
-)
-for (v in intersect(cat_vars, names(df))) df[[v]] <- as.factor(df[[v]])
-
-# Derived variables
-if ("price" %in% names(df)) {
-  df <- df |>
-    mutate(
-      log_price = log(price),
-      doors_num = if ("doornumber" %in% names(df)) dplyr::recode(doornumber, two = 2L, four = 4L, .default = NA_integer_) else NA_integer_
-    )
-}
-
-rows <- nrow(df); cols <- ncol(df)
-# quick check
-stopifnot("price" %in% names(df))
+df <- df %>%
+  mutate(across(all_of(factor_cols), as.factor))
 ```
 
-### Check for any spelling errors in categorical data
+### Factor variables: check stored as factors in R
 
 ```{r}
-cat_cols <- names(df)[sapply(df, function(x) is.factor(x) || is.character(x))]
-uniques <- lapply(cat_cols, function(v) sort(unique(df[[v]])))
-names(uniques) <- cat_cols
-uniques
+str(df)
 ```
 
-BE note: should cylinder number be numerical?  Could we convert or is it categorical?
+### Visualisation
 
-### Quick visualisation
+Have chosen `price` as response variable. Want to see how it's distributed...
+(might want to use log(price) as used in Intro to Python).
 
 ```{r}
-p1 <- ggplot(df, aes(price)) +
-  geom_histogram(bins = 30) +
-  labs(title = "Price (raw)")
-p2 <- ggplot(df, aes(log_price)) +
-  geom_histogram(bins = 30) +
-  labs(title = "Price (log)")
-
-# Correlations among numerics
-
-num_vars <- c(
-  "wheelbase", "carlength", "carwidth", "carheight", "curbweight",
-  "enginesize", "boreratio", "stroke", "compressionratio", "horsepower",
-  "peakrpm", "citympg", "highwaympg", "symboling"
-)
-keep_num <- intersect(num_vars, names(df))
-p_cor <- GGally::ggcorr(
-  df[, keep_num],
-  label = TRUE, label_round = 2, hjust = 0.8, size = 3
-) +
-  labs(title = "Correlation (numeric regressors)")
-
-# Boxplots of log_price by key categoricals (if present)
-
-plot_cat <- function(var) {
-  if (var %in% names(df)) {
-    ggplot(df, aes(.data[[var]], log_price)) +
-      geom_boxplot() +
-      labs(title = paste("log_price by", var), x = var, y = "log_price") +
-      theme(axis.text.x = element_text(angle = 30, hjust = 1))
-  } else {
-    NULL
-  }
-}
-p_cat1 <- plot_cat("fueltype")
-p_cat2 <- plot_cat("carbody")
-p_cat3 <- plot_cat("drivewheel")
+ggplot(df, aes(x = price)) +
+  geom_histogram(bins = 30, fill = "blue", alpha = 0.7) +
+  ggtitle("Distribution of Car Prices")
 ```
+
+Look at numerical variables vs price
 
 ```{r}
-p1
-p2
+# price vs horsepower
+ggplot(df, aes(x = horsepower, y = price)) +
+  geom_point(alpha = 0.6) +
+  geom_smooth(method = "lm", color = "red", se = FALSE) +
+  ggtitle("Price vs Horsepower") +
+  theme_minimal()
+
+# Price vs engine size
+ggplot(df, aes(x = enginesize, y = price)) +
+  geom_point(alpha = 0.6) +
+  geom_smooth(method = "lm", color = "red", se = FALSE) +
+  ggtitle("Price vs Engine Size") +
+  theme_minimal()
+
+# Price vs highwaympg (could also use citympg)
+ggplot(df, aes(x = highwaympg, y = price)) +
+  geom_point(alpha = 0.6) +
+  geom_smooth(method = "lm", color = "red", se = FALSE) +
+  ggtitle("Price vs MPG (Highway)") +
+  theme_minimal()
+
+# Price vs citympg (note: city vs highwaympg are likely to be correlated)
+ggplot(df, aes(x = citympg, y = price)) +
+  geom_point(alpha = 0.6) +
+  geom_smooth(method = "lm", color = "red", se = FALSE) +
+  ggtitle("Price vs MPG (City)") +
+  theme_minimal()
+
 ```
+
+This is only a quick look, but clear issues with negative price assuming simple
+linear regression > ~40 mpg for both city and highway mpg
 
 ```{r}
-p_cor
+# Price vs fuel type
+
+ggplot(df, aes(x = fueltype, y = price)) +
+  geom_boxplot() +
+  ggtitle("Price
+Distribution by Fuel Type") +
+  theme_minimal()
+
+# Price vs car body
+
+ggplot(df, aes(x = carbody, y = price)) +
+  geom_boxplot() +
+  ggtitle("Price
+Distribution by Car Body") +
+  theme_minimal()
+
+# Price vs (new) manufacturer
+
+ggplot(df, aes(x = carManufacturer, y = price)) +
+  geom_boxplot() +
+  ggtitle("Price Distribution by Manufacturer") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1))
 ```
 
-```{r}
-p_cat1
-p_cat2
-p_cat3
-```
+This is not unexpected, but is quite interesting to see. Some manufacturers are
+more expensive (& the range of models produced is also variable).
 
-# Fitting General Linear Response Model
+Based upon our personal investigation & search we think the data we have been
+given here are a subset of the data from 1985 Ward's Automotive Yearbook (with a
+more comprehensive data set being available from
+https://archive.ics.uci.edu/dataset/10/automobile).
+
+Note, this doesn't consider companies that own other companies (i.e., Toyota
+currently owns Lexus, but both could be considered to be toyota despite both
+having different price points. This consideration is something we decided was
+beyond the scope of this analysis).
+
+# Pricing Assistant Model
+
+Our main goal is to get an accurate predicted price $$\hat{y}$$ for a new
+car.
+
+Note, to build a good pricing assistant, we must check p-values, interpret
+coefficients to ensure the model is valid - this chimes with goals of assessment
+and lecture content
+
+## Fitting General Linear Response Model
 
 TBI
 
