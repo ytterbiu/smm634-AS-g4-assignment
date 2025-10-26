@@ -605,6 +605,53 @@ cat("\n--- VIF Scores for Robust Final Model ---\n")
 print(car::vif(mdl.pa5))
 ```
 
+
+### price model 6 (Ardi)
+
+```{r}
+
+mdl.pa6 <- lm(formula = log(price) ~ aspiration +
+       carbody +
+       wheelbase +
+       carheight + curbweight +
+       enginetype + enginesize + 
+       fuelsystem +
+       peakrpm +
+       carManufacturer, data = df)
+
+
+print(summary(mdl.pa6))
+
+cat("\n--- VIF Scores for model 6 ---\n")
+print(car::vif(mdl.pa6))
+
+```
+```{r}
+
+par(bg = "white")
+par(mfrow = c(2, 2))
+plot(mdl.pa6)
+par(mfrow = c(1, 1))
+
+```
+
+```{r}
+
+print(AIC(mdl.pa4))
+print(AIC(mdl.pa6))
+
+```
+
+
+Ardi's note:
+
+Improvements over model 4:
+- Higher R^2 (.9497 > .9394)
+- Lower AIC (-271.04 < -241.13)
+
+
+
+
 # MPG Model
 
 ## Attempt 01
@@ -763,6 +810,7 @@ plot(lm.mpg3aic)
 vif(lm.mpg3aic)
 ```
 
+
 Summary
 
 - Model explains ~95% of variance in fuel efficiency value
@@ -783,6 +831,48 @@ Rotor engine has strong negative coefficient -> indicating it has a poor fuel
 efficiency value -> consistent with prior knowledge
 
 ## Limitations
+
+
+```{r}
+
+lm.mpg4 <-lm(formula = log(highwaympg/price) ~ aspiration + carbody +
+       wheelbase +
+       carheight + curbweight +
+       enginetype + enginesize + 
+       fuelsystem + peakrpm +
+       carManufacturer, data = df)
+
+print(summary(lm.mpg4))
+
+print(vif(lm.mpg4))
+
+```
+
+
+```{r}
+
+par(bg = "white")
+par(mfrow = c(2, 2))
+plot(lm.mpg4)
+
+```
+
+```{r}
+print(AIC(lm.mpg3))
+print(AIC(lm.mpg4))
+```
+
+
+Ardi's note:
+
+Improvement over lm.mpg3:
+- Higher R^2 (.9649 > .9564)
+- Lower AIC (-211.08 < -173.69)
+
+Deliberately choose same predictors for log(price) to compare and decompose the effects.
+Since log(highway/price) = log(highway) - log(price)
+
+
 
 TBI
 
