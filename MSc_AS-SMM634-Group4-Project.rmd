@@ -12,6 +12,7 @@ output:
     self_contained: true
     toc: true
     toc_float: true
+    toc_depth: 3
     number_sections: true
     code_folding: show
     theme: flatly
@@ -29,7 +30,7 @@ to render...
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(
   echo = TRUE, message = FALSE, warning = FALSE,
-  fig.align = "center", fig.width = 7, fig.height = 5
+  fig.align = "center", fig.width = 7, fig.height = 7
 )
 ```
 
@@ -37,8 +38,19 @@ knitr::opts_chunk$set(
 ## dependencies / external librarys
 library(dplyr)
 library(ggplot2)
+library(patchwork) #for side by side ggplots
 library(car)
 library(MASS)
+
+dir.create("fig", showWarnings = FALSE)
+knitr::opts_chunk$set(
+  fig.path   = "fig/",
+  dpi        = 300,
+  fig.width  = 6,
+  fig.height = 4,
+  dev        = "png"
+)
+knitr::opts_chunk$set(dev = "svglite")
 ```
 
 ## Read Data
@@ -210,9 +222,27 @@ Have chosen `price` as response variable. Want to see how it's distributed...
 (might want to use log(price) as used in Intro to Python).
 
 ```{r}
-ggplot(df, aes(x = price)) +
+p1 <- ggplot(df, aes(x = price)) +
   geom_histogram(bins = 30, fill = "blue", alpha = 0.7) +
-  ggtitle("Distribution of Car Prices")
+  xlab("Count") +
+  ylab("Price [$]")
+  # labs(title = "Distribution of Car Prices", x = "price", y = "count")
+
+p2 <- ggplot(df, aes(x = log(price))) +
+  geom_histogram(bins = 30, fill = "red", alpha = 0.7) +
+  xlab("Count") +
+  ylab("log(Price) [log($)]")
+  # labs(title = "Distribution of Log(Price)", x = "log(price)", y = "count")
+
+combo <- p1 | p2
+combo
+```
+
+```{r}
+ggsave("fig/price_hist.png",     plot = p1, width = 6, height = 4, units = "in", dpi = 300)
+ggsave("fig/logprice_hist.png",  plot = p2, width = 6, height = 4, units = "in", dpi = 300)
+
+ggsave("fig/price_vs_logprice.png", plot = combo, width = 12, height = 4, units = "in", dpi = 300)
 ```
 
 Look at numerical variables vs price
@@ -270,11 +300,27 @@ Distribution by Car Body") +
 
 # Price vs (new) manufacturer
 
-ggplot(df, aes(x = carManufacturer, y = price)) +
+p3 <- ggplot(df, aes(x = carManufacturer, y = price)) +
   geom_boxplot() +
-  ggtitle("Price Distribution by Manufacturer") +
+  # ggtitle("Price Distribution by Manufacturer") +
+  xlab("Car Manufacturer") +
+  ylab("Price [$]") +
   theme_minimal() +
   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1))
+
+p4 <- ggplot(df, aes(x = carManufacturer, y = log(price))) +
+  geom_boxplot() +
+  # ggtitle("Price Distribution by Manufacturer") +
+  xlab("Car Manufacturer") +
+  ylab("log(Price) [log($)]") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1))
+```
+
+```{r}
+ggsave("fig/price_manufacturer_box.png",     plot = p3, width = 6, height = 4, units = "in", dpi = 300)
+ggsave("fig/logprice_manufacturer_box.png",  plot = p4, width = 6, height = 4, units = "in", dpi = 300)
+
 ```
 
 This is not unexpected, but is quite interesting to see. Some manufacturers are
@@ -341,8 +387,8 @@ See if variables removed as a group were significant.
 
 Hypothesis:
 
-- $H_0$​: The simpler model (mdl.pa2) is sufficient
-- $H_1$​: The first (full) model (mdl.pa1) is significantly better.
+- $H_0$: The simpler model (mdl.pa2) is sufficient
+- $H_1$: The first (full) model (mdl.pa1) is significantly better.
 
 ```{r}
 print(anova(mdl.pa2, mdl.pa1))
@@ -411,7 +457,7 @@ print(anova(mdl.pa3, mdl.pa4))
 
 ### Summary
 
-- `mdl.pa4` now shows a random, horizontal band of points. The red line is flat.
+- `mdl.pa4` now shows a random horizontal band of points. The red line is flat.
   This indicates the variance of the residuals is now constant, and we can trust
   our p-values and standard errors.
 - GVIF values are high, but we have lots of categories. Importantly all
@@ -423,7 +469,7 @@ print(anova(mdl.pa3, mdl.pa4))
   - p-value (0.7481) is large -> there is no statistical evidence that
     `highwaympg`, `fueltype`, and `drivewheel` as a group improve the model.
 
-`mdl.pa4` (simpiler) is just as good as `mdl.pa3`, so we should use `mdl.pa4`.
+`mdl.pa4` (simpler) is just as good as `mdl.pa3`, so we should use `mdl.pa4`.
 
 ## Demo: testing this model's use to answer our initial question
 
@@ -601,10 +647,9 @@ par(mfrow = c(2, 2))
 plot(mdl.pa5)
 par(mfrow = c(1, 1))
 
-cat("\n--- VIF Scores for Robust Final Model ---\n")
+cat("\n--- VIF Scores for mdl.pa5 ---\n")
 print(car::vif(mdl.pa5))
 ```
-
 
 ### price model 6 (Ardi)
 
@@ -614,7 +659,7 @@ mdl.pa6 <- lm(formula = log(price) ~ aspiration +
        carbody +
        wheelbase +
        carheight + curbweight +
-       enginetype + enginesize + 
+       enginetype + enginesize +
        fuelsystem +
        peakrpm +
        carManufacturer, data = df)
@@ -626,6 +671,7 @@ cat("\n--- VIF Scores for model 6 ---\n")
 print(car::vif(mdl.pa6))
 
 ```
+
 ```{r}
 
 par(bg = "white")
@@ -642,15 +688,12 @@ print(AIC(mdl.pa6))
 
 ```
 
-
 Ardi's note:
 
 Improvements over model 4:
+
 - Higher R^2 (.9497 > .9394)
 - Lower AIC (-271.04 < -241.13)
-
-
-
 
 # MPG Model
 
@@ -810,7 +853,6 @@ plot(lm.mpg3aic)
 vif(lm.mpg3aic)
 ```
 
-
 Summary
 
 - Model explains ~95% of variance in fuel efficiency value
@@ -832,13 +874,12 @@ efficiency value -> consistent with prior knowledge
 
 ## Limitations
 
-
 ```{r}
 
 lm.mpg4 <-lm(formula = log(highwaympg/price) ~ aspiration + carbody +
        wheelbase +
        carheight + curbweight +
-       enginetype + enginesize + 
+       enginetype + enginesize +
        fuelsystem + peakrpm +
        carManufacturer, data = df)
 
@@ -847,7 +888,6 @@ print(summary(lm.mpg4))
 print(vif(lm.mpg4))
 
 ```
-
 
 ```{r}
 
@@ -862,18 +902,32 @@ print(AIC(lm.mpg3))
 print(AIC(lm.mpg4))
 ```
 
-
 Ardi's note:
 
 Improvement over lm.mpg3:
+
 - Higher R^2 (.9649 > .9564)
 - Lower AIC (-211.08 < -173.69)
 
-Deliberately choose same predictors for log(price) to compare and decompose the effects.
-Since log(highway/price) = log(highway) - log(price)
+Deliberately choose same predictors for log(price) to compare and decompose the
+effects. Since log(highway/price) = log(highway) - log(price)
 
+```{r}
+anova(lm.mpg4)
+print(hatvalues(lm.mpg4))
+```
+```{r}
+h <- hatvalues(lm.mpg4)
 
+h[h == 1]
 
+near1 <- abs(h - 1) < 1e-10
+h[near1]                 
+which(near1)             
+data.frame(obs = which(near1), hat = h[near1])  
+
+df[near1, ]
+```
 TBI
 
 ## Suggestions for Improvements
