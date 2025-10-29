@@ -912,6 +912,131 @@ Improvement over lm.mpg3:
 Deliberately choose same predictors for log(price) to compare and decompose the
 effects. Since log(highway/price) = log(highway) - log(price)
 
+
+## Variable selection
+
+```{r}
+
+lmpg1 <- lm(formula = log(highwaympg/price) ~ aspiration +
+       carbody +
+       carheight +
+       carManufacturer +
+       compressionratio +
+       curbweight +
+       cylinderNum +
+       carwidth +
+       enginelocation +
+       enginetype +
+       enginesize +
+       fuelsystem +
+       peakrpm +
+       stroke +
+       wheelbase +
+       horsepower,
+     data = df)
+
+summary(lmpg1)
+print(AIC(lmpg1))
+```
+
+```{r}
+stepAIC(
+  lmpg1,
+  scope = list(lower = ~ carManufacturer, 
+               upper = ~ .),
+  direction = 'both',
+  trace = 1
+)
+```
+
+```{r}
+lmpg2 <- lm(formula = log(highwaympg/price) ~ aspiration + carbody +
+                  carheight + 
+       carManufacturer + compressionratio + curbweight + enginetype + 
+       enginesize + fuelsystem + peakrpm + stroke + wheelbase, data = df)
+
+summary(lmpg2) #R^2: .9659
+print(AIC(lmpg2))
+```
+
+
+```{r}
+
+lmpg3 <- lm(formula = log(highwaympg/price) ~ aspiration + carbody +
+                wheelbase +
+                carheight + curbweight +
+                enginetype + enginesize +
+                fuelsystem + peakrpm +
+                carManufacturer, data = df)
+
+summary(lmpg3) #R^2: .9649
+print(AIC(lmpg3))
+```
+
+
+```{r}
+
+lprice1 <- lm(formula = log(price) ~ aspiration + carbody + carheight + 
+       carManufacturer + compressionratio + curbweight + enginetype + 
+       enginesize + fuelsystem + peakrpm + stroke + wheelbase + horsepower,
+     data = df)
+
+summary(lprice1)
+print(AIC(lprice1))
+```
+
+
+```{r}
+
+stepAIC(
+  lm(formula = log(price) ~ aspiration +
+       carbody +
+       carheight +
+       carManufacturer +
+       compressionratio +
+       curbweight +
+       cylinderNum +
+       carwidth +
+       enginelocation +
+       enginetype +
+       enginesize +
+       fuelsystem +
+       peakrpm +
+       stroke +
+       wheelbase,
+     data = df),
+  scope = list(lower = ~ carManufacturer, 
+               upper = ~ .),
+  direction = 'both',
+  trace = 1
+)
+```
+
+
+```{r}
+lprice2 <- lm(formula = log(price) ~ aspiration + carbody + carheight + 
+       carManufacturer + curbweight + carwidth + enginetype + enginesize + 
+       peakrpm + wheelbase, data = df)
+
+summary(lprice2)
+print(AIC(lprice2))
+```
+
+```{r}
+
+lprice3 <- lm(formula = log(price) ~ aspiration + carbody +
+                wheelbase +
+                carheight + curbweight +
+                enginetype + enginesize +
+                fuelsystem + peakrpm +
+                carManufacturer, data = df)
+
+summary(lprice3)
+print(AIC(lprice3))
+```
+
+
+
 ```{r}
 anova(lm.mpg4)
 print(hatvalues(lm.mpg4))
