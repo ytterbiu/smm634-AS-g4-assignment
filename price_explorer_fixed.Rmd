@@ -1,0 +1,182 @@
+---
+title: "Exploratory work: Pricing Assistant"
+output: html_document
+runtime: shiny
+---
+
+```{r setup, include=FALSE}
+# OPTIONAL: if you've saved the fitted model, this will load it
+# saveRDS(lprice3, "models/lprice3.rds")  # do this once elsewhere
+if (file.exists("models/lprice3.rds")) {
+  lprice3 <- readRDS("models/lprice3.rds")
+}
+
+# If your model object is named differently (e.g., mdl.pa4), map it:
+if (!exists("lprice3") && exists("mdl.pa4")) lprice3 <- mdl.pa4
+
+# If you're fitting in this document, do it ABOVE this chunk so it's available here.
+if (!exists("lprice3")) {
+  stop("`lprice3` not found. Fit it earlier in the document or save it to models/lprice3.rds")
+}
+
+xlev <- lprice3$xlevels
+```
+
+<!-- ## Helper -->
+
+```{r, include=FALSE}
+get_price_prediction_report <- function(model,
+                                        aspiration,
+                                        carbody,
+                                        carheight,
+                                        carManufacturer,
+                                        curbweight,
+                                        enginetype,
+                                        enginesize,
+                                        fuelsystem,
+                                        peakrpm,
+                                        wheelbase,
+                                        level = 0.95,
+                                        smearing_correct = TRUE,
+                                        currency = "$",
+                                        quiet = FALSE) {
+  new_car <- data.frame(
+    aspiration = aspiration,
+    carbody = carbody,
+    carheight = carheight,
+    carManufacturer = carManufacturer,
+    curbweight = curbweight,
+    enginetype = enginetype,
+    enginesize = enginesize,
+    fuelsystem = fuelsystem,
+    peakrpm = peakrpm,
+    wheelbase = wheelbase,
+    stringsAsFactors = FALSE
+  )
+
+  if (!is.null(model$xlevels)) {
+    for (nm in names(model$xlevels)) {
+      new_car[[nm]] <- factor(new_car[[nm]], levels = model$xlevels[[nm]])
+    }
+    bad <- vapply(names(model$xlevels), function(nm) any(is.na(new_car[[nm]])), logical(1))
+    if (any(bad)) {
+      stop(
+        "Unseen factor level(s): ",
+        paste(sprintf("%s", names(model$xlevels)[bad]), collapse = ", "),
+        ". Use choices from model$xlevels."
+      )
+    }
+  }
+
+  pred_log <- predict(model, newdata = new_car, interval = "prediction", level = level)
+
+  smear <- if (smearing_correct) mean(exp(residuals(model))) else 1
+
+  fit_price <- exp(pred_log[1, "fit"]) * smear
+  lwr_price <- exp(pred_log[1, "lwr"])
+  upr_price <- exp(pred_log[1, "upr"])
+
+  if (!quiet) {
+    desc <- sprintf(
+      "%s %s | enginetype=%s, fuelsystem=%s, enginesize=%s, curbweight=%s, carheight=%s, peakrpm=%s, wheelbase=%s",
+      new_car$carManufacturer, new_car$carbody,
+      new_car$enginetype, new_car$fuelsystem, new_car$enginesize,
+      new_car$curbweight, new_car$carheight, new_car$peakrpm, new_car$wheelbase
+    )
+    cat(sprintf(
+      "\nBased on the log-price model, for %s:\n  • Point estimate: %s%.0f\n  • %d%% prediction interval: [%s%.0f, %s%.0f]\n",
+      desc, currency, fit_price, round(level * 100), currency, lwr_price, currency, upr_price
+    ))
+  }
+
+  invisible(data.frame(
+    predicted_price = fit_price,
+    lower = lwr_price,
+    upper = upr_price,
+    level = level
+  ))
+}
+```
+
+## App
+
+```{r, echo=FALSE}
+library(shiny)
+
+ui <- fluidPage(
+  # 4-column responsive grid for inputs
+  tags$head(tags$style(HTML("
+    .grid-inputs {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(220px, 1fr));
+      gap: 12px 16px;
+      align-items: start;
+      margin-bottom: 1rem;
+    }
+    /* Stack to 2 columns on narrower screens */
+    @media (max-width: 1200px) {
+      .grid-inputs { grid-template-columns: repeat(2, minmax(220px, 1fr)); }
+    }
+    /* Ensure text output/table don't stretch weirdly */
+    .pred-wrap { max-width: 900px; }
+  "))),
+  
+  titlePanel("Price prediction (log-price model)"),
+  
+  # ---- Inputs: 4 columns, x rows ----
+  div(class = "grid-inputs",
+      selectInput("aspiration","aspiration", choices = xlev$aspiration),
+      selectInput("carbody","carbody", choices = xlev$carbody),
+      selectInput("carManufacturer","carManufacturer", choices = xlev$carManufacturer),
+      selectInput("enginetype","enginetype", choices = xlev$enginetype),
+      selectInput("fuelsystem","fuelsystem", choices = xlev$fuelsystem),
+      numericInput("carheight","carheight", value = 52, step = 0.1),
+      numericInput("curbweight","curbweight", value = 2500, step = 1),
+      numericInput("enginesize","enginesize", value = 120, step = 1),
+      numericInput("peakrpm","peakrpm", value = 5000, step = 50),
+      numericInput("wheelbase","wheelbase", value = 97, step = 0.1)
+  ),
+  
+  # ---- Outputs below the grid ----
+  div(class = "pred-wrap",
+      tags$h4("Prediction"),
+      verbatimTextOutput("pred_text"),
+      tags$h4("Details"),
+      tableOutput("pred_tbl")
+  )
+)
+
+
+server <- function(input, output, session) {
+  make_pred <- reactive({
+    get_price_prediction_report(
+      model = lprice3,
+      aspiration = input$aspiration,
+      carbody = input$carbody,
+      carheight = input$carheight,
+      carManufacturer = input$carManufacturer,
+      curbweight = input$curbweight,
+      enginetype = input$enginetype,
+      enginesize = input$enginesize,
+      fuelsystem = input$fuelsystem,
+      peakrpm = input$peakrpm,
+      wheelbase = input$wheelbase,
+      quiet = TRUE
+    )
+  })
+
+  output$pred_text <- renderPrint({
+    validate(need(exists("lprice3"), "`lprice3` not found; fit or load it earlier in the document."))
+    p <- make_pred()
+    cat(sprintf("Predicted price: $%.0f\n%d%% prediction interval: [$%.0f, $%.0f]",
+                p$predicted_price, round(p$level*100), p$lower, p$upper))
+  })
+
+  output$pred_tbl <- renderTable({
+    validate(need(exists("lprice3"), "`lprice3` not found; fit or load it earlier in the document."))
+    make_pred()
+  }, digits = 0)
+}
+
+shinyApp(ui, server)
+```

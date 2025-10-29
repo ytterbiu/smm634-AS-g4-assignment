@@ -17,12 +17,14 @@ output:
     theme: flatly
     highlight: tango
     df_print: paged
+runtime: shiny
 ---
 
-## BE note:
+# Key Information
 
-Use `rmarkdown::render("MSc_AS-SMM634-Group4-Project.rmd", output_dir = "docs")`
-to render...
+## Use `rmarkdown::render("MSc_AS-SMM634-Group4-Project.rmd", output_dir = "docs")` to render this document
+
+## Please see our [interactive Price Explorer](price_explorer/index.html)
 
 # Initial processing
 
@@ -524,6 +526,136 @@ path <- save_diag_side_by_side(
 )
 knitr::include_graphics(path)
 ```
+
+## Quick check: log(highwaympg)
+
+```{r}
+mdl.f_highwaympg3 <- lm(
+  log(highwaympg) ~ aspiration + carbody + carheight + carManufacturer +
+    curbweight + enginetype + enginesize + fuelsystem + peakrpm + wheelbase,
+  data = df
+)
+
+print(summary(mdl.f_highwaympg3), digits = 3)
+AIC(mdl.f_highwaympg3)
+```
+
+# Exploratory work: Pricing Assistant
+
+```{r}
+get_price_prediction_report <- function(model,
+                                        aspiration,
+                                        carbody,
+                                        carheight,
+                                        carManufacturer,
+                                        curbweight,
+                                        enginetype,
+                                        enginesize,
+                                        fuelsystem,
+                                        peakrpm,
+                                        wheelbase,
+                                        level = 0.95,
+                                        smearing_correct = TRUE,
+                                        currency = "$",
+                                        quiet = FALSE) {
+  new_car <- data.frame(
+    aspiration = aspiration,
+    carbody = carbody,
+    carheight = carheight,
+    carManufacturer = carManufacturer,
+    curbweight = curbweight,
+    enginetype = enginetype,
+    enginesize = enginesize,
+    fuelsystem = fuelsystem,
+    peakrpm = peakrpm,
+    wheelbase = wheelbase,
+    stringsAsFactors = FALSE
+  )
+
+  if (!is.null(model$xlevels)) {
+    for (nm in names(model$xlevels)) {
+      new_car[[nm]] <- factor(new_car[[nm]], levels = model$xlevels[[nm]])
+    }
+    bad <- vapply(names(model$xlevels), function(nm) any(is.na(new_car[[nm]])), logical(1))
+    if (any(bad)) {
+      stop(
+        "Unseen factor level(s): ",
+        paste(sprintf("%s", names(model$xlevels)[bad]), collapse = ", "),
+        ". Use choices from model$xlevels."
+      )
+    }
+  }
+
+  pred_log <- predict(model, newdata = new_car, interval = "prediction", level = level)
+
+  smear <- if (smearing_correct) mean(exp(residuals(model))) else 1
+
+  fit_price <- exp(pred_log[1, "fit"]) * smear
+  lwr_price <- exp(pred_log[1, "lwr"])
+  upr_price <- exp(pred_log[1, "upr"])
+
+  if (!quiet) {
+    desc <- sprintf(
+      "%s %s | enginetype=%s, fuelsystem=%s, enginesize=%s, curbweight=%s, carheight=%s, peakrpm=%s, wheelbase=%s",
+      new_car$carManufacturer, new_car$carbody,
+      new_car$enginetype, new_car$fuelsystem, new_car$enginesize,
+      new_car$curbweight, new_car$carheight, new_car$peakrpm, new_car$wheelbase
+    )
+    cat(sprintf(
+      "\nBased on the log-price model, for %s:\n  • Point estimate: %s%.0f\n  • %d%% prediction interval: [%s%.0f, %s%.0f]\n",
+      desc, currency, fit_price, round(level * 100), currency, lwr_price, currency, upr_price
+    ))
+  }
+
+  invisible(data.frame(
+    predicted_price = fit_price,
+    lower = lwr_price,
+    upper = upr_price,
+    level = level
+  ))
+}
+```
+
+```{r}
+# Example 1
+get_price_prediction_report(
+  model = lprice3,
+  aspiration = "std",
+  carbody = "sedan",
+  carheight = 52,
+  carManufacturer = "toyota",
+  curbweight = 2500,
+  enginetype = "ohc",
+  enginesize = 120,
+  fuelsystem = "mpfi",
+  peakrpm = 5000,
+  wheelbase = 97
+)
+
+# Example 2
+get_price_prediction_report(
+  model = lprice3,
+  aspiration = "turbo",
+  carbody = "hardtop",
+  carheight = 50,
+  carManufacturer = "porsche",
+  curbweight = 3000,
+  enginetype = "dohc",
+  enginesize = 180,
+  fuelsystem = "mpfi",
+  peakrpm = 6000,
+  wheelbase = 98
+)
+```
+
+```{r save-model, include=FALSE}
+dir.create("models", showWarnings = FALSE, recursive = TRUE)
+saveRDS(lprice1, "models/lprice1.rds")
+saveRDS(lprice2, "models/lprice2.rds")
+saveRDS(lprice3, "models/lprice3.rds")
+```
+
+## Shiny implementation
 
 # Code for appendix
 

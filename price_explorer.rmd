@@ -1,0 +1,69 @@
+---
+title: "price_explorer"
+author: "AS - Group 4"
+date: "`r Sys.Date()`"
+output: html_document
+runtime: shiny
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(shiny)
+xlev <- lprice3$xlevels
+
+ui <- fluidPage(
+titlePanel("Price prediction (log-price model)"),
+sidebarLayout(
+sidebarPanel(
+selectInput("aspiration","aspiration", choices = xlev$aspiration),
+selectInput("carbody","carbody", choices = xlev$carbody),
+selectInput("carManufacturer","carManufacturer", choices = xlev$carManufacturer),
+selectInput("enginetype","enginetype", choices = xlev$enginetype),
+selectInput("fuelsystem","fuelsystem", choices = xlev$fuelsystem),
+numericInput("carheight","carheight", value = 52, step = 0.1),
+numericInput("curbweight","curbweight", value = 2500, step = 1),
+numericInput("enginesize","enginesize", value = 120, step = 1),
+numericInput("peakrpm","peakrpm", value = 5000, step = 50),
+numericInput("wheelbase","wheelbase", value = 97, step = 0.1)
+),
+mainPanel(
+tags$h4("Prediction"),
+verbatimTextOutput("pred_text"),
+tags$h4("Details"),
+tableOutput("pred_tbl")
+)
+)
+)
+
+server <- function(input, output, session) {
+predict_one <- reactive({
+get_price_prediction_report(
+model = lprice3,
+aspiration = input$aspiration,
+carbody = input$carbody,
+carheight = input$carheight,
+carManufacturer = input$carManufacturer,
+curbweight = input$curbweight,
+enginetype = input$enginetype,
+enginesize = input$enginesize,
+fuelsystem = input$fuelsystem,
+peakrpm = input$peakrpm,
+wheelbase = input$wheelbase,
+quiet = TRUE
+)
+})
+
+output$pred_text <- renderPrint({
+p <- predict_one()
+cat(sprintf("Predicted price: $%.0f\n%d%% prediction interval: [$%.0f, $%.0f]",
+p$predicted_price, round(p$level*100), p$lower, p$upper))
+})
+output$pred_tbl <- renderTable(predict_one(), digits = 0)
+}
+
+shinyApp(ui, server)
+
+```
