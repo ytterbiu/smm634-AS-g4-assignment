@@ -129,8 +129,8 @@
 <text x='104.84' y='262.26' text-anchor='middle' style='font-size: 8.80px;fill: #4D4D4D; font-family: "Arial";' textLength='24.45px' lengthAdjust='spacingAndGlyphs'>20000</text>
 <text x='142.34' y='262.26' text-anchor='middle' style='font-size: 8.80px;fill: #4D4D4D; font-family: "Arial";' textLength='24.45px' lengthAdjust='spacingAndGlyphs'>30000</text>
 <text x='179.85' y='262.26' text-anchor='middle' style='font-size: 8.80px;fill: #4D4D4D; font-family: "Arial";' textLength='24.45px' lengthAdjust='spacingAndGlyphs'>40000</text>
-<text x='124.56' y='274.72' text-anchor='middle' style='font-size: 11.00px; font-family: "Arial";' textLength='29.38px' lengthAdjust='spacingAndGlyphs'>Count</text>
-<text transform='translate(18.84,130.99) rotate(-90)' text-anchor='middle' style='font-size: 11.00px; font-family: "Arial";' textLength='40.38px' lengthAdjust='spacingAndGlyphs'>Price [$]</text>
+<text x='124.56' y='274.72' text-anchor='middle' style='font-size: 11.00px; font-family: "Arial";' textLength='23.84px' lengthAdjust='spacingAndGlyphs'>price</text>
+<text transform='translate(18.84,130.99) rotate(-90)' text-anchor='middle' style='font-size: 11.00px; font-family: "Arial";' textLength='26.94px' lengthAdjust='spacingAndGlyphs'>count</text>
 </g>
 <defs>
   <clipPath id='cpMjQ5LjEzfDQyMS4wNHwxMC45NnwyNTEuMDI='>
@@ -207,8 +207,8 @@
 <text x='325.96' y='262.26' text-anchor='middle' style='font-size: 8.80px;fill: #4D4D4D; font-family: "Arial";' textLength='12.22px' lengthAdjust='spacingAndGlyphs'>9.5</text>
 <text x='360.56' y='262.26' text-anchor='middle' style='font-size: 8.80px;fill: #4D4D4D; font-family: "Arial";' textLength='17.11px' lengthAdjust='spacingAndGlyphs'>10.0</text>
 <text x='395.17' y='262.26' text-anchor='middle' style='font-size: 8.80px;fill: #4D4D4D; font-family: "Arial";' textLength='17.11px' lengthAdjust='spacingAndGlyphs'>10.5</text>
-<text x='335.08' y='274.72' text-anchor='middle' style='font-size: 11.00px; font-family: "Arial";' textLength='29.38px' lengthAdjust='spacingAndGlyphs'>Count</text>
-<text transform='translate(229.36,130.99) rotate(-90)' text-anchor='middle' style='font-size: 11.00px; font-family: "Arial";' textLength='84.38px' lengthAdjust='spacingAndGlyphs'>log(Price) [log($)]</text>
+<text x='335.08' y='274.72' text-anchor='middle' style='font-size: 11.00px; font-family: "Arial";' textLength='45.84px' lengthAdjust='spacingAndGlyphs'>log(price)</text>
+<text transform='translate(229.36,130.99) rotate(-90)' text-anchor='middle' style='font-size: 11.00px; font-family: "Arial";' textLength='26.94px' lengthAdjust='spacingAndGlyphs'>count</text>
 </g>
 </g>
 </svg>

@@ -4,7 +4,6 @@ subtitle: "Actuarial Science: Group 4"
 author:
   - "Ardi Wira Sudarmo"
   - "Basmah Khan"
-  - "Chengetanayi Dyirakumunda"
   - "Benjamin Evans"
 date: "`r format(Sys.Date(), '%d %B %Y')`"
 output:
@@ -41,6 +40,7 @@ library(ggplot2)
 library(patchwork) #for side by side ggplots
 library(car)
 library(MASS)
+library(jtools)
 
 dir.create("fig", showWarnings = FALSE)
 knitr::opts_chunk$set(
@@ -223,15 +223,15 @@ Have chosen `price` as response variable. Want to see how it's distributed...
 
 ```{r}
 p1 <- ggplot(df, aes(x = price)) +
-  geom_histogram(bins = 30, fill = "blue", alpha = 0.7) +
-  xlab("Count") +
-  ylab("Price [$]")
+  geom_histogram(bins = 30, fill = "blue", alpha = 0.7)
+  # xlab("Count") +
+  # ylab("Price [$]")
   # labs(title = "Distribution of Car Prices", x = "price", y = "count")
 
 p2 <- ggplot(df, aes(x = log(price))) +
-  geom_histogram(bins = 30, fill = "red", alpha = 0.7) +
-  xlab("Count") +
-  ylab("log(Price) [log($)]")
+  geom_histogram(bins = 30, fill = "red", alpha = 0.7)
+  # xlab("Count") +
+  # ylab("log(Price) [log($)]")
   # labs(title = "Distribution of Log(Price)", x = "log(price)", y = "count")
 
 combo <- p1 | p2
@@ -336,14 +336,341 @@ currently owns Lexus, but both could be considered to be toyota despite both
 having different price points. This consideration is something we decided was
 beyond the scope of this analysis).
 
-# Pricing Assistant Model
+# Model creation
+
+We have selected to use `log(highwaympg / price)` and `log(price)` as our
+response variables.
+
+## Regressor selection
+
+**Table.** Regressors initially selected for our model, the data type
+(categorical, numerical (continuous), or numerical (discrete)), along with the
+inclusion rationale. The categorical data were not broken down further into
+nominal, ordinal, and binary. _Denotes a custom factor (see § Extract Car
+Manufacturer Info)._
+
+| **Variable**       | **Type**             | **Inclusion rationale**                  |
+| ------------------ | -------------------- | ---------------------------------------- |
+| `aspiration`       | Categorical          | Engine performance                       |
+| `carbody`          | Categorical          | Car class and shape                      |
+| `carheight`        | Numeric (continuous) | Car size / weight                        |
+| `carManufacturer*` | Categorical          | Brand and reputation                     |
+| `compressionratio` | Numeric (continuous) | Engine performance                       |
+| `curbweight`       | Numeric (discrete)   | Car size / weight                        |
+| `cylinderNum`      | Categorical          | Engine performance                       |
+| `carwidth`         | Numeric (continuous) | Car size / weight                        |
+| `enginelocation`   | Categorical          | Car class and shape / Engine performance |
+| `enginetype`       | Categorical          | Engine performance                       |
+| `enginesize`       | Numeric (discrete)   | Engine performance                       |
+| `fuelsystem`       | Categorical          | Engine performance                       |
+| `peakrpm`          | Numeric (discrete)   | Engine performance                       |
+| `stroke`           | Numeric (continuous) | Engine performance (linked to torque)    |
+| `wheelbase`        | Numeric (continuous) | Car size (also linked to ride quality)   |
+| `horsepower`       | Numeric (discrete)   | Engine performance                       |
+
+## MPG-per-Dollar model
+
+```{r}
+lmpg1 <- lm(
+  log(highwaympg / price) ~ aspiration + carbody + carheight + carManufacturer +
+    compressionratio + curbweight + cylinderNum + carwidth + enginelocation +
+    enginetype + enginesize + fuelsystem + peakrpm + stroke + wheelbase +
+    horsepower,
+  data = df
+)
+
+print(summary(lmpg1))
+```
+
+```{r}
+lmpg2 <- stepAIC(lmpg1, direction = "both", trace = FALSE)
+summary(lmpg2)
+```
+
+## Price model
+
+```{r}
+lprice1 <- lm(
+  log(price) ~ aspiration + carbody + carheight + carManufacturer +
+    compressionratio + curbweight + cylinderNum + carwidth + enginelocation +
+    enginetype + enginesize + fuelsystem + peakrpm + stroke + wheelbase +
+    horsepower,
+  data = df
+)
+
+print(summary(lprice1))
+```
+
+```{r}
+lprice2 <- stepAIC(lprice1, direction = "both", trace = FALSE)
+summary(lprice2)
+```
+
+## Harmonising both models
+
+```{r}
+lmpg3 <- lm(
+  log(highwaympg / price) ~ aspiration + carbody + carheight + carManufacturer +
+    curbweight + enginetype + enginesize + fuelsystem + peakrpm + wheelbase,
+  data = df
+)
+
+print(summary(lmpg3), digits = 3)
+AIC(lmpg3)
+```
+
+```{r, fig.width=7, fig.height=8}
+par(mfrow = c(2, 2))
+plot(lmpg3)
+```
+
+```{r}
+print(anova(lmpg1,lmpg3))
+```
+
+```{r}
+lprice3 <- lm(
+  log(price) ~ aspiration + carbody + carheight + carManufacturer +
+    curbweight + enginetype + enginesize + fuelsystem + peakrpm + wheelbase,
+  data = df
+)
+
+print(summary(lprice3), digits = 3)
+AIC(lprice3)
+```
+
+```{r, fig.width=7, fig.height=8}
+par(bg = "white")
+par(mfrow = c(2, 2))
+plot(lprice3)
+par(mfrow = c(1, 1))
+```
+
+```{r}
+vif(lmpg3)
+vif(lprice3)
+```
+
+```{r}
+summ(lmpg3, digits = 3)
+summ(lprice3, digits = 3)
+```
+
+## Creating custom plots for report
+
+```{r}
+save_diag_side_by_side <- function(
+    m_left, m_right,
+    left_label = "Model: log(highwaympg/price)",
+    right_label = "Model: log(price)",
+    out_dir = "fig",
+    file = "diag_side_by_side.png",
+    width = 8,
+    height = 12,
+    res = 200,
+    pointsize = 10) {
+  dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
+  path <- file.path(out_dir, file)
+
+  png(
+    filename = path, units = "in", width = width, height = height,
+    res = res, pointsize = pointsize, bg = "white"
+  )
+
+  op <- par(no.readonly = TRUE)
+  on.exit(
+    {
+      par(op)
+      dev.off()
+    },
+    add = TRUE
+  )
+
+  par(bg = "white", mfcol = c(4, 2), mar = c(4, 4, 2, 1), oma = c(2, 2, 4, 0.5))
+  plot(m_left, which = c(1, 2, 3, 5), sub.caption = "", ask = FALSE)
+  plot(m_right, which = c(1, 2, 3, 5), sub.caption = "", ask = FALSE)
+
+  # Column headers
+  # mtext(left_label, side = 3, line = 1.2, at = 0.25, outer = TRUE, font = 2)
+  # mtext(right_label, side = 3, line = 1.2, at = 0.75, outer = TRUE, font = 2)
+  lab <- function(txt) as.expression(bquote(bold(underline(.(txt)))))
+
+  mtext(lab(left_label),
+    side = 3, line = 1.1, at = 0.28,
+    outer = TRUE, adj = 0.5
+  )
+
+  mtext(lab(right_label),
+    side = 3, line = 1.1, at = 0.77,
+    outer = TRUE, adj = 0.5
+  )
+
+  invisible(path)
+}
+
+save_diag_side_by_side(lmpg3, lprice3,
+  out_dir = "fig",
+  file = "diag_both.png",
+  width = 7, height = 10, res = 300
+)
+```
+
+```{r diag-both, fig.cap="Diagnostics for both models", fig.align="center", out.width="100%", echo=FALSE, message=FALSE, warning=FALSE}
+path <- save_diag_side_by_side(
+  lmpg3, lprice3,
+  out_dir = "fig",
+  file    = "diag_both.png",
+  width   = 7, height = 10, res = 300
+)
+knitr::include_graphics(path)
+```
+
+# Code for appendix
+
+```{r}
+
+lmpg1 <- lm(formula = log(highwaympg/price) ~ aspiration +
+       carbody +
+       carheight +
+       carManufacturer +
+       compressionratio +
+       curbweight +
+       cylinderNum +
+       carwidth +
+       enginelocation +
+       enginetype +
+       enginesize +
+       fuelsystem +
+       peakrpm +
+       stroke +
+       wheelbase +
+       horsepower,
+     data = df)
+
+summary(lmpg1)
+print(AIC(lmpg1))
+```
+
+```{r}
+stepAIC(
+  lmpg1,
+  scope = list(lower = ~ carManufacturer,
+               upper = ~ .),
+  direction = 'both',
+  trace = 1
+)
+```
+
+```{r}
+lmpg2 <- lm(formula = log(highwaympg/price) ~ aspiration + carbody +
+                  carheight +
+       carManufacturer + compressionratio + curbweight + enginetype +
+       enginesize + fuelsystem + peakrpm + stroke + wheelbase, data = df)
+
+summary(lmpg2) #R^2: .9659
+print(AIC(lmpg2))
+```
+
+```{r}
+
+lmpg3 <- lm(formula = log(highwaympg/price) ~ aspiration + carbody +
+                wheelbase +
+                carheight + curbweight +
+                enginetype + enginesize +
+                fuelsystem + peakrpm +
+                carManufacturer, data = df)
+
+summary(lmpg3) #R^2: .9649
+print(AIC(lmpg3))
+```
+
+```{r}
+
+lprice1 <- lm(formula = log(price) ~ aspiration + carbody + carheight +
+       carManufacturer + compressionratio + curbweight + enginetype +
+       enginesize + fuelsystem + peakrpm + stroke + wheelbase + horsepower,
+     data = df)
+
+summary(lprice1)
+print(AIC(lprice1))
+```
+
+```{r}
+
+stepAIC(
+  lm(formula = log(price) ~ aspiration +
+       carbody +
+       carheight +
+       carManufacturer +
+       compressionratio +
+       curbweight +
+       cylinderNum +
+       carwidth +
+       enginelocation +
+       enginetype +
+       enginesize +
+       fuelsystem +
+       peakrpm +
+       stroke +
+       wheelbase,
+     data = df),
+  scope = list(lower = ~ carManufacturer,
+               upper = ~ .),
+  direction = 'both',
+  trace = 1
+)
+```
+
+```{r}
+lprice2 <- lm(formula = log(price) ~ aspiration + carbody + carheight +
+       carManufacturer + curbweight + carwidth + enginetype + enginesize +
+       peakrpm + wheelbase, data = df)
+
+summary(lprice2)
+print(AIC(lprice2))
+```
+
+```{r}
+
+lprice3 <- lm(formula = log(price) ~ aspiration + carbody +
+                wheelbase +
+                carheight + curbweight +
+                enginetype + enginesize +
+                fuelsystem + peakrpm +
+                carManufacturer, data = df)
+
+summary(lprice3)
+print(AIC(lprice3))
+```
+
+<!-- # ```{r} -->
+<!-- # anova(lm.mpg4) -->
+<!-- # print(hatvalues(lm.mpg4)) -->
+<!-- # ``` -->
+<!-- #  -->
+<!-- # ```{r} -->
+<!-- # h <- hatvalues(lm.mpg4) -->
+<!-- #  -->
+<!-- # h[h == 1] -->
+<!-- #  -->
+<!-- # near1 <- abs(h - 1) < 1e-10 -->
+<!-- # h[near1] -->
+<!-- # which(near1) -->
+<!-- # data.frame(obs = which(near1), hat = h[near1]) -->
+<!-- #  -->
+<!-- # df[near1, ] -->
+<!-- # ``` -->
+
+# Working / Old code
+
+## Pricing Assistant Model
 
 Our main goal is to get an accurate predicted price $$\hat{y}$$ for a new car.
 
 BE note: A good pricing assistant chimes with goals of assessment and the
 lecture content.
 
-## Attempt 01
+### Attempt 01
 
 Excluding predictors that are highly correlated (parameter choice)
 
@@ -381,7 +708,7 @@ variable with the largest p-value and re-fitting the model...
 mdl.pa2 <- stepAIC(mdl.pa1, direction = "backward", trace = TRUE)
 ```
 
-### Attempt 01: Model comparison
+#### Attempt 01: Model comparison
 
 See if variables removed as a group were significant.
 
@@ -416,7 +743,7 @@ Plots show two issues
   get larger as the predicted price increases)
 - Some leverage points / large outliers
 
-## Attempt 02
+### Attempt 02
 
 To fix heteroscedasticity let's use log(price) & look at what happens if we
 include carManufacturer?
@@ -455,7 +782,7 @@ print(vif(mdl.pa4))
 print(anova(mdl.pa3, mdl.pa4))
 ```
 
-### Summary
+#### Summary
 
 - `mdl.pa4` now shows a random horizontal band of points. The red line is flat.
   This indicates the variance of the residuals is now constant, and we can trust
@@ -471,7 +798,7 @@ print(anova(mdl.pa3, mdl.pa4))
 
 `mdl.pa4` (simpler) is just as good as `mdl.pa3`, so we should use `mdl.pa4`.
 
-## Demo: testing this model's use to answer our initial question
+### Demo: testing this model's use to answer our initial question
 
 BE note: we know from data source that these prices are in dollars...
 
@@ -531,7 +858,7 @@ report_string <- sprintf(
 cat(report_string)
 ```
 
-### Demo: testing function
+#### Demo: testing function
 
 ```{r}
 get_price_prediction_report <- function(model,
@@ -614,21 +941,21 @@ get_price_prediction_report(
 )
 ```
 
-## Limitations
+### Limitations
 
 Observation 76 is a high-leverage point
 
 - coefficients are being skewed by this single observation
 - /model is overfit to this point
 
-## Suggestions for Improvements
+### Suggestions for Improvements
 
 - We could remove this point and refit the model to see if the coefficients are
   stable and the model is more general
 - BE note: don't know if we want to do this in the model or leave it and discuss
   here?
 
-### Attempt 03 (may not include in final version)
+#### Attempt 03 (may not include in final version)
 
 ```{r}
 row_to_remove <- 76
@@ -651,7 +978,7 @@ cat("\n--- VIF Scores for mdl.pa5 ---\n")
 print(car::vif(mdl.pa5))
 ```
 
-### price model 6 (Ardi)
+#### price model 6 (Ardi)
 
 ```{r}
 
@@ -695,9 +1022,9 @@ Improvements over model 4:
 - Higher R^2 (.9497 > .9394)
 - Lower AIC (-271.04 < -241.13)
 
-# MPG Model
+## MPG Model
 
-## Attempt 01
+### Attempt 01
 
 Here we are asking: "How does fuel economy (citympg) affect a car's price, after
 controlling for other characteristics?"
@@ -746,7 +1073,7 @@ This (& plots) indicate:
 Model gives p-value of 0.107634, which suggests effect of `citympg` is not
 significant, but errors stated above indicate/suggest model is not valid
 
-### Attempting to address these issues
+#### Attempting to address these issues
 
 ```{r}
 # use log(price)
@@ -815,7 +1142,7 @@ So `citympg` does not have a statistically significant effect on log(price)
 after controlling for other factors (like curbweight, enginesize, carwidth, and
 carManufacturer)
 
-## Attempt 02
+### Attempt 02
 
 Note here Ardi's great model looks to address the question: 'What car features
 predict a car's fuel efficiency value?'
@@ -839,7 +1166,7 @@ plot(lm.mpg3)
 print(vif(lm.mpg3))
 ```
 
-### Problem
+#### Problem
 
 BE note: Is the fact that we have the message “not plotting observations with
 leverage one: 19, 76, 126, 130” a problem?
@@ -872,189 +1199,10 @@ Story is quite clear though:
 Rotor engine has strong negative coefficient -> indicating it has a poor fuel
 efficiency value -> consistent with prior knowledge
 
-## Limitations
+### Limitations
 
-```{r}
-
-lm.mpg4 <-lm(formula = log(highwaympg/price) ~ aspiration + carbody +
-       wheelbase +
-       carheight + curbweight +
-       enginetype + enginesize +
-       fuelsystem + peakrpm +
-       carManufacturer, data = df)
-
-print(summary(lm.mpg4))
-
-print(vif(lm.mpg4))
-
-```
-
-```{r}
-
-par(bg = "white")
-par(mfrow = c(2, 2))
-plot(lm.mpg4)
-
-```
-
-```{r}
-print(AIC(lm.mpg3))
-print(AIC(lm.mpg4))
-```
-
-Ardi's note:
-
-Improvement over lm.mpg3:
-
-- Higher R^2 (.9649 > .9564)
-- Lower AIC (-211.08 < -173.69)
-
-Deliberately choose same predictors for log(price) to compare and decompose the
-effects. Since log(highway/price) = log(highway) - log(price)
-
-
-## Variable selection
-
-```{r}
-
-lmpg1 <- lm(formula = log(highwaympg/price) ~ aspiration +
-       carbody +
-       carheight +
-       carManufacturer +
-       compressionratio +
-       curbweight +
-       cylinderNum +
-       carwidth +
-       enginelocation +
-       enginetype +
-       enginesize +
-       fuelsystem +
-       peakrpm +
-       stroke +
-       wheelbase +
-       horsepower,
-     data = df)
-
-summary(lmpg1)
-print(AIC(lmpg1))
-```
-
-```{r}
-stepAIC(
-  lmpg1,
-  scope = list(lower = ~ carManufacturer, 
-               upper = ~ .),
-  direction = 'both',
-  trace = 1
-)
-```
-
-```{r}
-lmpg2 <- lm(formula = log(highwaympg/price) ~ aspiration + carbody +
-                  carheight + 
-       carManufacturer + compressionratio + curbweight + enginetype + 
-       enginesize + fuelsystem + peakrpm + stroke + wheelbase, data = df)
-
-summary(lmpg2) #R^2: .9659
-print(AIC(lmpg2))
-```
-
-
-```{r}
-
-lmpg3 <- lm(formula = log(highwaympg/price) ~ aspiration + carbody +
-                wheelbase +
-                carheight + curbweight +
-                enginetype + enginesize +
-                fuelsystem + peakrpm +
-                carManufacturer, data = df)
-
-summary(lmpg3) #R^2: .9649
-print(AIC(lmpg3))
-```
-
-
-```{r}
-
-lprice1 <- lm(formula = log(price) ~ aspiration + carbody + carheight + 
-       carManufacturer + compressionratio + curbweight + enginetype + 
-       enginesize + fuelsystem + peakrpm + stroke + wheelbase + horsepower,
-     data = df)
-
-summary(lprice1)
-print(AIC(lprice1))
-```
-
-
-```{r}
-
-stepAIC(
-  lm(formula = log(price) ~ aspiration +
-       carbody +
-       carheight +
-       carManufacturer +
-       compressionratio +
-       curbweight +
-       cylinderNum +
-       carwidth +
-       enginelocation +
-       enginetype +
-       enginesize +
-       fuelsystem +
-       peakrpm +
-       stroke +
-       wheelbase,
-     data = df),
-  scope = list(lower = ~ carManufacturer, 
-               upper = ~ .),
-  direction = 'both',
-  trace = 1
-)
-```
-
-
-```{r}
-lprice2 <- lm(formula = log(price) ~ aspiration + carbody + carheight + 
-       carManufacturer + curbweight + carwidth + enginetype + enginesize + 
-       peakrpm + wheelbase, data = df)
-
-summary(lprice2)
-print(AIC(lprice2))
-```
-
-```{r}
-
-lprice3 <- lm(formula = log(price) ~ aspiration + carbody +
-                wheelbase +
-                carheight + curbweight +
-                enginetype + enginesize +
-                fuelsystem + peakrpm +
-                carManufacturer, data = df)
-
-summary(lprice3)
-print(AIC(lprice3))
-```
-
-
-
-```{r}
-anova(lm.mpg4)
-print(hatvalues(lm.mpg4))
-```
-```{r}
-h <- hatvalues(lm.mpg4)
-
-h[h == 1]
-
-near1 <- abs(h - 1) < 1e-10
-h[near1]                 
-which(near1)             
-data.frame(obs = which(near1), hat = h[near1])  
-
-df[near1, ]
-```
 TBI
 
-## Suggestions for Improvements
+### Suggestions for Improvements
 
 TBI
