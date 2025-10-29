@@ -12,7 +12,7 @@ stopifnot(length(models) > 0)
 model_obj <- if ("lprice3" %in% names(models)) models[["lprice3"]] else models[[1]]
 xlev <- model_obj$xlevels
 
-# ----- helper (unchanged) -----
+# ----- helper -----
 get_price_prediction_report <- function(model,
                                         aspiration, carbody, carheight, carManufacturer,
                                         curbweight, enginetype, enginesize, fuelsystem,
@@ -50,25 +50,33 @@ ui <- fluidPage(
     @media (max-width: 1200px) {.grid-inputs { grid-template-columns: repeat(2, minmax(220px, 1fr)); } }
     .pred-wrap { max-width: 900px; }
   "))),
-  titlePanel("Price prediction (log-price model)"),
+  titlePanel("Price prediction (log-price model: lprice3)"),
   div(class = "grid-inputs",
-      selectInput("aspiration","aspiration", choices = xlev$aspiration),
-      selectInput("carbody","carbody", choices = xlev$carbody),
-      selectInput("carManufacturer","carManufacturer", choices = xlev$carManufacturer),
-      selectInput("enginetype","enginetype", choices = xlev$enginetype),
-      selectInput("fuelsystem","fuelsystem", choices = xlev$fuelsystem),
-      numericInput("carheight","carheight", value = 52, step = 0.1),
-      numericInput("curbweight","curbweight", value = 2500, step = 1),
-      numericInput("enginesize","enginesize", value = 120, step = 1),
-      numericInput("peakrpm","peakrpm", value = 5000, step = 50),
-      numericInput("wheelbase","wheelbase", value = 97, step = 0.1)
+      selectInput("aspiration","Engine aspiration (aspiration)", choices = xlev$aspiration),
+      selectInput("carbody","Car body type (carbody)", choices = xlev$carbody),
+      selectInput("carManufacturer", "Car manufacturer (carManufacturer)", choices = xlev$carManufacturer),
+      selectInput("enginetype","Engine type (enginetype)", choices = xlev$enginetype),
+      selectInput("fuelsystem","Fuel system (fuelsystem)", choices = xlev$fuelsystem),
+      numericInput("carheight","Car height (carheight) [inches]", value = 52, step = 0.1),
+      numericInput("curbweight","Curb weight (curbweight) [lb]", value = 2500, step = 1),
+      numericInput("enginesize","Engine size (enginesize) [cubic inches]", value = 120, step = 1),
+      numericInput("peakrpm","Peak RPM [rpm]", value = 5000, step = 50),
+      numericInput("wheelbase","Wheel base [inches]", value = 97, step = 0.1)
   ),
   div(class = "pred-wrap",
       tags$h4("Prediction"),
       verbatimTextOutput("pred_text"),
       tags$h4("Details"),
       tableOutput("pred_tbl"),
-      tags$p(tags$a(href = "../MSc_AS-SMM634-Group4-Project.html", "← Back to report"))
+      # tags$p(tags$a(href = "../MSc_AS-SMM634-Group4-Project.html", "← Back to report"))
+      tags$p(
+        tags$a(
+          href = "../MSc_AS-SMM634-Group4-Project.html",
+          target = "_top",
+          rel = "external noopener",
+          "← Back to report"
+        )
+      )
   )
 )
 
@@ -83,10 +91,18 @@ server <- function(input, output, session) {
       quiet = TRUE
     )
   })
+  fmt_money <- function(x, currency = "$", digits = 0) {
+    paste0(currency, formatC(x, format = "f", digits = digits, big.mark = ","))
+  }
   output$pred_text <- renderPrint({
     p <- make_pred()
-    cat(sprintf("Predicted price: $%.0f\n%d%% prediction interval: [$%.0f, $%.0f]",
-                p$predicted_price, round(p$level*100), p$lower, p$upper))
+    cat(sprintf(
+      "Predicted price: %s\n%d%% prediction interval: [%s, %s]",
+      fmt_money(p$predicted_price),
+      round(p$level * 100),
+      fmt_money(p$lower),
+      fmt_money(p$upper)
+    ))
   })
   output$pred_tbl <- renderTable(make_pred(), digits = 0)
 }

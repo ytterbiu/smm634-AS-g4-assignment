@@ -22,9 +22,28 @@ runtime: shiny
 
 # Key Information
 
-## Use `rmarkdown::render("MSc_AS-SMM634-Group4-Project.rmd", output_dir = "docs")` to render this document
+## Background
 
-## Please see our [interactive Price Explorer](price_explorer/index.html)
+This R Markdown document was created as part of a group assignment for SMM634 at
+Bayes Business School, City St George's, University of London in Term 1 2025-26.
+
+- _BE note: use
+  `rmarkdown::render("MSc_AS-SMM634-Group4-Project.rmd", output_dir = "docs")`
+  to render this document_
+
+## An interactive pricing model?
+
+An experimental part of this work involved creating an interactive pricing
+model. Please see this link for more information (it may take a few seconds to
+load the R shiny web app):
+[Interactive Price Prediction](price_explorer/index.html)
+
+- Future development planned to include the ability to switch between different
+  models in this interface to see how each offers a different prediction for the
+  price of a car in 1985
+- BE note: currently this doesn't have any data validation (can put in negative
+  values - this is interesting to play around with so haven't added data entry
+  checks for now)
 
 # Initial processing
 
@@ -656,6 +675,11 @@ saveRDS(lprice3, "models/lprice3.rds")
 ```
 
 ## Shiny implementation
+
+This is still a work in progress...
+
+- Accessible via: [Interactive Price Prediction](price_explorer/index.html)
+- This may take a few seconds to load the R shiny web app via GitHub
 
 # Code for appendix
 
