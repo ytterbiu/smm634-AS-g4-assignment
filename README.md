@@ -24,9 +24,19 @@ The directory structure is as follows
 │   └── MSc_AS-SMM634-Group4-Project.html
 ├── Group assignment-20251021.Rproj
 ├── Group-Assignment.r
-├── MSc_AS-SMM634-Group4-Project.html
+├── models
+│   ├── lprice1.rds
+│   ├── lprice2.rds
+│   └── lprice3.rds
 ├── MSc_AS-SMM634-Group4-Project.rmd
 ├── OnlineCarSafetyExplore.R
+├── plots
+│   ├── hmpg_per_price_pairplots.png
+│   ├── log_hmpg_per_price_pairplots.png
+│   ├── logprice_pairplots.png
+│   └── price_pairplots.png
+├── price_explorer
+│   └── app.R
 ├── README.md
 ├── SMM634_Ass1.pdf
 └── smm634_group_project.ipynb
@@ -47,6 +57,15 @@ manually rendered and the html file committed and pushed.
 
 Main working file for our analysis. Idea is to use a modular structure to make
 collaboration easier.
+
+### `MSc_AS-SMM634-Group4-Project.rmd`
+
+Main analysis file used throughout project complete with annotations.
+
+### `price_explorer/app.R`
+
+(Exploratory) R Shiny app providing a clean interface for the final log(pricing)
+model (transformed back into normal prices).
 
 ## Contents
 
